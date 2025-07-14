@@ -112,4 +112,49 @@ function summarizeBlock(tempArr, precipArr, startHr, endHr) {
 
   const precipChance = precipArr.filter(p =>
 
+const forecast = $json;
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  const hr = d.getHours();
+  const min = d.getMinutes().toString().padStart(2, '0');
+  const ampm = hr >= 12 ? 'PM' : 'AM';
+  const hr12 = hr % 12 || 12;
+  return `${hr12}:${min} ${ampm}`;
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
+}
+
+function buildDayBlock(label, data) {
+  return [
+    `🎯 **${forecast.location}** — **${label}** (${formatDate(data.highTemp.time)})`,
+    `🔺 High: ${data.highTemp.value}°F at ${formatTime(data.highTemp.time)}`,
+    `🔻 Low: ${data.lowTemp.value}°F at ${formatTime(data.lowTemp.time)}`,
+    `💨 Avg Wind: ${data.wind.averageMPH} mph`,
+    `🌧️ Precip: ${data.precipitation.totalIn}"` + 
+      (data.precipitation.totalIn > 0 ? ` at ${data.precipitation.times.map(formatTime).join(', ')}` : ' (None)'),
+    ``,
+    `🌅 Morning: ${data.forecastByPeriod.morning.temp}° — ${data.forecastByPeriod.morning.summary}`,
+    `☀️ Afternoon: ${data.forecastByPeriod.afternoon.temp}° — ${data.forecastByPeriod.afternoon.summary}`,
+    `🌇 Evening: ${data.forecastByPeriod.evening.temp}° — ${data.forecastByPeriod.evening.summary}`,
+    `🌙 Overnight: ${data.forecastByPeriod.overnight.temp}° — ${data.forecastByPeriod.overnight.summary}`
+  ];
+}
+
+const htmlLines = [
+  ...buildDayBlock("Today", forecast.today),
+  ``,
+  ...buildDayBlock("Tomorrow", forecast.tomorrow)
+];
+
+const summaryHtml = htmlLines.join('<br>');
+
+return [{ json: { summary: summaryHtml } }];
+
 
