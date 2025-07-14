@@ -1,0 +1,69 @@
+const data = $json;
+const getParam = (param) => data.data.find(d => d.parameter === param)?.coordinates[0]?.dates || [];
+const temps = getParam("t_2m:F");
+const precip = getParam("precip_5min:in");
+const wind = getParam("wind_speed_FL10:mph");
+function groupByDate(entries) {
+  return entries.reduce((acc, entry) => {
+    const date = entry.date.split("T")[0];
+    acc[date] = acc[date] || [];
+    acc[date].push(entry);
+    return acc;
+  }, {});
+}
+const tempByDate = groupByDate(temps);
+const precipByDate = groupByDate(precip);
+const windByDate = groupByDate(wind);
+const sortedDates = Object.keys(tempByDate).sort();
+const [todayStr, tomorrowStr] = sortedDates;
+function buildDay(dateStr) {
+  const t = tempByDate[dateStr] || [];
+  const p = precipByDate[dateStr] || [];
+  const w = windByDate[dateStr] || [];
+  const maxTemp = t.reduce((max, cur) => (cur.value > max.value ? cur : max), t[0]);
+  const minTemp = t.reduce((min, cur) => (cur.value < min.value ? cur : min), t[0]);
+  const totalPrecip = p.reduce((sum, entry) => sum + (entry.value || 0), 0);
+  const precipTimes = p.filter(e => e.value > 0).map(e => e.date);
+  const windValues = w.map(e => e.value);
+  const avgWind = windValues.reduce((a, b) => a + b, 0) / windValues.length;
+  return {
+    highTemp: { value: Math.round(maxTemp.value), time: maxTemp.date },
+    lowTemp: { value: Math.round(minTemp.value), time: minTemp.date },
+    wind: { averageMPH: parseFloat(avgWind.toFixed(1)) },
+    precipitation: {
+      totalIn: parseFloat(totalPrecip.toFixed(2)),
+      times: precipTimes
+    },
+    forecastByPeriod: {
+      morning: summarizeBlock(t, p, 6, 12),
+      afternoon: summarizeBlock(t, p, 12, 18),
+      evening: summarizeBlock(t, p, 18, 22),
+      overnight: summarizeBlock(t, p, 22, 6)
+    }
+  };
+}
+function summarizeBlock(tempArr, precipArr, startHr, endHr) {
+  const tempBlock = tempArr.filter(t => {
+    const hr = new Date(t.date).getHours();
+    return startHr < endHr ? hr >= startHr && hr < endHr : hr >= startHr || hr < endHr;
+  });
+  const avgTemp = tempBlock.length
+    ? tempBlock.reduce((sum, t) => sum + t.value, 0) / tempBlock.length
+    : null;
+  const precipChance = precipArr.filter(p => {
+    const hr = new Date(p.date).getHours();
+    return (startHr < endHr ? hr >= startHr && hr < endHr : hr >= startHr || hr < endHr) && p.value > 0;
+  }).length > 0 ? 5 : 0;
+  return {
+    temp: avgTemp ? Math.round(avgTemp) : null,
+    summary: "Clear",
+    precipChance
+  };
+}
+return [{
+  json: {
+    location: "Atlanta, GA",
+    today: buildDay(todayStr),
+    tomorrow: buildDay(tomorrowStr)
+  }
+}];
