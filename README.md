@@ -131,9 +131,11 @@ return [{
   }
 }];
 
+```js
+
 ### 4. JavaScript Function: Generate HTML Forecast Summary
 
-```js
+
 
 const forecast = $json;
 
