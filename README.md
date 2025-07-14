@@ -37,6 +37,7 @@ Fetch 48-hour forecast data from Meteomatics:
 Use the URL from our URL Creator
 
 
+
 Authenticated using basic auth with your Meteomatics username and password.
 
 ---
@@ -110,7 +111,29 @@ function summarizeBlock(tempArr, precipArr, startHr, endHr) {
     ? tempBlock.reduce((sum, t) => sum + t.value, 0) / tempBlock.length
     : null;
 
-  const precipChance = precipArr.filter(p =>
+  const precipChance = precipArr.filter(p => {
+    const hr = new Date(p.date).getHours();
+    return (startHr < endHr ? hr >= startHr && hr < endHr : hr >= startHr || hr < endHr) && p.value > 0;
+  }).length > 0 ? 5 : 0;
+
+  return {
+    temp: avgTemp ? Math.round(avgTemp) : null,
+    summary: "Clear",
+    precipChance
+  };
+}
+
+return [{
+  json: {
+    location: "Atlanta, GA",
+    today: buildDay(todayStr),
+    tomorrow: buildDay(tomorrowStr)
+  }
+}];
+
+### 4. JavaScript Function: Generate HTML Forecast Summary
+
+```js
 
 const forecast = $json;
 
@@ -156,5 +179,4 @@ const htmlLines = [
 const summaryHtml = htmlLines.join('<br>');
 
 return [{ json: { summary: summaryHtml } }];
-
 
