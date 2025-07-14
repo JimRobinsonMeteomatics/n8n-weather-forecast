@@ -1,29 +1,29 @@
 # ☁️ Automated Weather Forecast Emailer (n8n + Meteomatics)
 
-Get hyperlocal weather forecasts delivered to your inbox every morning using [n8n](https://n8n.io) and the [Meteomatics Weather API](https://www.meteomatics.com/en/api/).  
+Get hyperlocal weather forecasts delivered to your inbox every morning using [n8n](https://n8n.io) and the [Meteomatics Weather API](https://www.meteomatics.com/en/api/).
 No backend. No frontend. Just visual low-code automation + JavaScript snippets.
 
 ---
 
 ## 🧱 What You'll Build
 
-- ✅ Pull high-resolution 48-hour weather data (temperature, wind, precipitation)
-- ✅ Parse forecasts into “Today” & “Tomorrow” using JavaScript
-- ✅ Generate a clean, emoji-enhanced HTML summary
-- ✅ Automatically send the forecast via Gmail
-- ✅ 100% customizable, extendable, and reliable
+* ✅ Pull high-resolution 48-hour weather data (temperature, wind, precipitation)
+* ✅ Parse forecasts into “Today” & “Tomorrow” using JavaScript
+* ✅ Generate a clean, emoji-enhanced HTML summary
+* ✅ Automatically send the forecast via Gmail
+* ✅ 100% customizable, extendable, and reliable
 
 ---
 
 ## 🚀 Prerequisites
 
-- [n8n](https://n8n.io) 
-- Meteomatics Weather API credentials (get a free trial [here](https://www.meteomatics.com/en/api/))
-- Gmail account with OAuth2 credentials configured in n8n
+* [n8n](https://n8n.io) installed and running
+* Meteomatics Weather API credentials (get a free trial [here](https://www.meteomatics.com/en/api/))
+* Gmail account with OAuth2 credentials configured in n8n
 
 ---
 
-## 🧩 Workflow Overview
+## 🧹 Workflow Overview
 
 ### 1. Schedule Trigger
 
@@ -34,9 +34,10 @@ Run the workflow daily at your preferred time using the **Schedule Trigger** nod
 ### 2. HTTP Request Node
 
 Fetch 48-hour forecast data from Meteomatics:
-Use the URL from our URL Creator
 
-
+```
+GET https://api.meteomatics.com/2025-07-13T00:00:00.000-04:00--2025-07-15T00:00:00.000-04:00:PT15M/t_2m:F,precip_5min:in,wind_speed_FL10:mph/33.7544657,-84.3898151/json?model=mix
+```
 
 Authenticated using basic auth with your Meteomatics username and password.
 
@@ -44,7 +45,7 @@ Authenticated using basic auth with your Meteomatics username and password.
 
 ### 3. JavaScript Function: Split Forecast by Day
 
-```js
+```
 const data = $json;
 
 const getParam = (param) =>
@@ -130,13 +131,13 @@ return [{
     tomorrow: buildDay(tomorrowStr)
   }
 }];
+```
 
-```js
+---
 
 ### 4. JavaScript Function: Generate HTML Forecast Summary
 
-
-
+```
 const forecast = $json;
 
 function formatTime(iso) {
@@ -181,4 +182,27 @@ const htmlLines = [
 const summaryHtml = htmlLines.join('<br>');
 
 return [{ json: { summary: summaryHtml } }];
+```
 
+---
+
+### 5. Gmail Node
+
+* **Email Type**: `HTML`
+* **Message Body**:
+
+```
+{{ $json.summary }}
+```
+
+---
+
+## 💬 Feedback or Questions?
+
+Feel free to [open an issue](https://github.com/your-username/your-repo/issues) or contact the Meteomatics API team directly.
+
+---
+
+## 🏷 Tags
+
+`#weatherapi` `#meteomatics` `#n8n` `#lowcode` `#automation` `#gmailworkflow` `#forecast` `#html` `#javascript`
