@@ -17,7 +17,7 @@ No backend. No frontend. Just visual low-code automation + JavaScript snippets.
 
 ## 🚀 Prerequisites
 
-* [n8n](https://n8n.io) installed and running
+* [n8n](https://n8n.io) trial or paid account setup
 * Meteomatics Weather API credentials (get a free trial [here](https://www.meteomatics.com/en/api/))
 * Gmail account with OAuth2 credentials configured in n8n
 
@@ -33,7 +33,8 @@ Run the workflow daily at your preferred time using the **Schedule Trigger** nod
 
 ### 2. HTTP Request Node
 
-Fetch 48-hour forecast data from Meteomatics:
+Fetch 48-hour forecast data from Meteomatics using the URL Creator for your city. Below is a sample using Atlanta, GA. Replace the example with your URL.
+[URL Creator](https://meteomatics.com/url-creator/)
 
 ```
 GET https://api.meteomatics.com/2025-07-13T00:00:00.000-04:00--2025-07-15T00:00:00.000-04:00:PT15M/t_2m:F,precip_5min:in,wind_speed_FL10:mph/33.7544657,-84.3898151/json?model=mix
@@ -126,7 +127,7 @@ function summarizeBlock(tempArr, precipArr, startHr, endHr) {
 
 return [{
   json: {
-    location: "Atlanta, GA",
+    location: "INSERT YOUR CITY NAME HERE",
     today: buildDay(todayStr),
     tomorrow: buildDay(tomorrowStr)
   }
@@ -197,11 +198,6 @@ return [{ json: { summary: summaryHtml } }];
 
 ---
 
-## 💬 Feedback or Questions?
-
-Feel free to [open an issue](https://github.com/your-username/your-repo/issues) or contact the Meteomatics API team directly.
-
----
 
 ## 🏷 Tags
 
