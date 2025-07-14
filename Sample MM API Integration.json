@@ -1,0 +1,289 @@
+{
+  "name": "Sample MM API Integration",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1000,
+        -120
+      ],
+      "id": "38e386d9-596b-4c77-8381-ed8dc8ff1c76",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "jrobinson@meteomatics.com",
+        "subject": "Your Weather Report",
+        "message": "={{ $json.summary }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        420,
+        -60
+      ],
+      "id": "ef5284af-6f52-498b-8712-b02c08f2ecfe",
+      "name": "Send a message",
+      "webhookId": "9d2e3b23-8d60-4752-b80e-56115fc2084b",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "IqHHOuIKnQB0v3vd",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\n// Extract parameter data\nconst getParam = (param) =>\n  data.data.find(d => d.parameter === param)?.coordinates[0]?.dates || [];\n\nconst temps = getParam(\"t_2m:F\");\nconst precip = getParam(\"precip_5min:in\");\nconst wind = getParam(\"wind_speed_FL10:mph\");\n\n// Group by date\nfunction groupByDate(entries) {\n  return entries.reduce((acc, entry) => {\n    const date = entry.date.split(\"T\")[0];\n    acc[date] = acc[date] || [];\n    acc[date].push(entry);\n    return acc;\n  }, {});\n}\n\nconst tempByDate = groupByDate(temps);\nconst precipByDate = groupByDate(precip);\nconst windByDate = groupByDate(wind);\n\nconst sortedDates = Object.keys(tempByDate).sort();\n\nconst [todayStr, tomorrowStr] = sortedDates;\n\n// Structure for each day\nfunction buildDay(dateStr) {\n  const t = tempByDate[dateStr] || [];\n  const p = precipByDate[dateStr] || [];\n  const w = windByDate[dateStr] || [];\n\n  const maxTemp = t.reduce((max, cur) => (cur.value > max.value ? cur : max), t[0]);\n  const minTemp = t.reduce((min, cur) => (cur.value < min.value ? cur : min), t[0]);\n\n  const totalPrecip = p.reduce((sum, entry) => sum + (entry.value || 0), 0);\n  const precipTimes = p.filter(e => e.value > 0).map(e => e.date);\n\n  const windValues = w.map(e => e.value);\n  const avgWind = windValues.reduce((a, b) => a + b, 0) / windValues.length;\n\n  return {\n    highTemp: { value: Math.round(maxTemp.value), time: maxTemp.date },\n    lowTemp: { value: Math.round(minTemp.value), time: minTemp.date },\n    wind: { averageMPH: parseFloat(avgWind.toFixed(1)) },\n    precipitation: {\n      totalIn: parseFloat(totalPrecip.toFixed(2)),\n      times: precipTimes\n    },\n    forecastByPeriod: {\n      morning: summarizeBlock(t, p, 6, 12),\n      afternoon: summarizeBlock(t, p, 12, 18),\n      evening: summarizeBlock(t, p, 18, 22),\n      overnight: summarizeBlock(t, p, 22, 6)\n    }\n  };\n}\n\n// Helper to summarize a time block\nfunction summarizeBlock(tempArr, precipArr, startHr, endHr) {\n  const tempBlock = tempArr.filter(t => {\n    const hr = new Date(t.date).getHours();\n    return startHr < endHr ? hr >= startHr && hr < endHr : hr >= startHr || hr < endHr;\n  });\n  const avgTemp = tempBlock.length ? tempBlock.reduce((sum, t) => sum + t.value, 0) / tempBlock.length : null;\n\n  const precipChance = precipArr.filter(p => {\n    const hr = new Date(p.date).getHours();\n    return (startHr < endHr ? hr >= startHr && hr < endHr : hr >= startHr || hr < endHr) && p.value > 0;\n  }).length > 0 ? 5 : 0;\n\n  return {\n    temp: avgTemp ? Math.round(avgTemp) : null,\n    summary: \"Clear\", // placeholder, you can build logic off wind/cloud/precip later\n    precipChance\n  };\n}\n\nreturn [\n  {\n    json: {\n      location: \"Atlanta, GA\",\n      today: buildDay(todayStr),\n      tomorrow: buildDay(tomorrowStr)\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        -60
+      ],
+      "id": "6bede3cb-0bde-4db5-b717-2883ca76e452",
+      "name": "Parse the Meteomatics Data"
+    },
+    {
+      "parameters": {
+        "url": "https://api.meteomatics.com/2025-07-13T00:00:00.000-04:00--2025-07-15T00:00:00.000-04:00:PT15M/t_2m:F,precip_5min:in,wind_speed_FL10:mph/33.7544657,-84.3898151/json?model=mix",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -720,
+        -120
+      ],
+      "id": "9da24e86-11fe-4e34-8930-c07a8ad84ffe",
+      "name": "API Query from Meteomatics",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "UFt004w0oDQC7TcZ",
+          "name": "MM API Creds"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const forecast = $json;\n\nfunction formatTime(iso) {\n  const d = new Date(iso);\n  const hr = d.getHours();\n  const min = d.getMinutes().toString().padStart(2, '0');\n  const ampm = hr >= 12 ? 'PM' : 'AM';\n  const hr12 = hr % 12 || 12;\n  return `${hr12}:${min} ${ampm}`;\n}\n\nfunction formatDate(iso) {\n  return new Date(iso).toLocaleDateString('en-US', {\n    weekday: 'long',\n    month: 'short',\n    day: 'numeric'\n  });\n}\n\nfunction buildDayBlock(label, data) {\n  return [\n    `🎯 <strong>${forecast.location}</strong> — <strong>${label}</strong> (${formatDate(data.highTemp.time)})`,\n    `🔺 High: ${data.highTemp.value}°F at ${formatTime(data.highTemp.time)}`,\n    `🔻 Low: ${data.lowTemp.value}°F at ${formatTime(data.lowTemp.time)}`,\n    `💨 Avg Wind: ${data.wind.averageMPH} mph`,\n    `🌧️ Precip: ${data.precipitation.totalIn}\"` + \n      (data.precipitation.totalIn > 0 ? ` at ${data.precipitation.times.map(formatTime).join(', ')}` : ' (None)'),\n    ``,\n    `🌅 Morning: ${data.forecastByPeriod.morning.temp}° — ${data.forecastByPeriod.morning.summary}`,\n    `☀️ Afternoon: ${data.forecastByPeriod.afternoon.temp}° — ${data.forecastByPeriod.afternoon.summary}`,\n    `🌇 Evening: ${data.forecastByPeriod.evening.temp}° — ${data.forecastByPeriod.evening.summary}`,\n    `🌙 Overnight: ${data.forecastByPeriod.overnight.temp}° — ${data.forecastByPeriod.overnight.summary}`\n  ];\n}\n\n\nconst htmlLines = [\n  ...buildDayBlock(\"Today\", forecast.today),\n  ``,\n  ...buildDayBlock(\"Tomorrow\", forecast.tomorrow)\n];\n\nconst summaryHtml = htmlLines.join('<br>');\n\nreturn [{ json: { summary: summaryHtml } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -60
+      ],
+      "id": "05381f3b-8c58-4df5-ba8a-5e3a1eda9c4c",
+      "name": "Create a Forecast Summary"
+    },
+    {
+      "parameters": {
+        "content": "🕰️ **Schedule Trigger**\nRuns every day to start the workflow.\n",
+        "height": 340,
+        "width": 200
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -240
+      ],
+      "id": "b93d2037-1425-4afc-be6b-8885c45bd28f",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "🌐 **HTTP Request**\nCalls Meteomatics API to get 48 hours of weather data (15-min intervals).\nUse the URL Creator to build the perfect query!",
+        "height": 340,
+        "width": 280,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -820,
+        -240
+      ],
+      "id": "3d0c7095-5bbd-4853-a34d-17ccd922f9eb",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "🧠 **Split Forecast by Day**\nParses the raw data into two clean chunks:\n- `today`\n- `tomorrow`\nAlso calculates min/max temps, wind avg, and precip.",
+        "height": 340,
+        "width": 380,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -240
+      ],
+      "id": "d0184f36-9f4a-47de-8671-bec24ed9be98",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "🧾 **Generate Summary**\nBuilds a readable weather summary with:\n- High/low temps\n- Wind\n- Precip\n- Morning / Afternoon / Evening / Overnight\nFormats it with `<br>` for HTML emails.\n",
+        "height": 340,
+        "width": 380,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        -240
+      ],
+      "id": "313d13e8-f8ca-4e76-a837-2e68ef5bf5a7",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "📬 **Send Gmail Message**\nSends the final summary to your inbox using Gmail API.\nSet to `Email Type: HTML` for proper formatting.\n",
+        "height": 340,
+        "width": 380
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        280,
+        -240
+      ],
+      "id": "aa4d4e8d-ba10-4260-a659-ef02baa50a90",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "# BUILD A SIMPLE AUTOMATED FORECAST FOR YOUR INBOX USING:\n- [URL Creator](https://meteomatics.com/url-creator/)\n- [Meteomatics API](https://www.meteomatics.com/en/sign-up-weather-api-test-account/)\n- Copy & Paste javascript snippets",
+        "height": 140,
+        "width": 1700,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -400
+      ],
+      "id": "8480d05d-928a-464c-bba3-cdf26d43350a",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## This is only the beginning! Use advanced logic to create powerful workflows with the best and most accurate global data!",
+        "height": 80,
+        "width": 1700,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        120
+      ],
+      "id": "f2abf607-0577-46b8-b3ad-daf5f245e842",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "# Get Started!\n## - Signup for an API trial\n## - Enter credentials into n8n\n## - Build a URL query\n## - Create nodes, and execute!",
+        "height": 240,
+        "width": 360
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        -400
+      ],
+      "id": "d1f307ab-3612-4333-86e9-516fee550f50",
+      "name": "Sticky Note7"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "API Query from Meteomatics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse the Meteomatics Data": {
+      "main": [
+        [
+          {
+            "node": "Create a Forecast Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API Query from Meteomatics": {
+      "main": [
+        [
+          {
+            "node": "Parse the Meteomatics Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a Forecast Summary": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "4bc73558-00a7-449e-a54d-226bdbcca363",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8a07d82c445139f898a5c7aa5ea54a94936e9ffe2215b043ebb16c9a2218f19c"
+  },
+  "id": "9wSaG85cjINt62u5",
+  "tags": [
+    {
+      "createdAt": "2025-07-10T13:59:36.096Z",
+      "updatedAt": "2025-07-10T13:59:36.096Z",
+      "id": "07opjDUXBwE4nhKr",
+      "name": "weather alerts"
+    }
+  ]
+}
